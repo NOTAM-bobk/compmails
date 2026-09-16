@@ -555,42 +555,37 @@
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         class MailTmService {
-            // Central request wrapper handling 429 rate limits and 401 token expiration
-            static async request(url, options = {}, retries = 3, backoff = 1000) {
+            // Keep auth metadata out of fetch() options and never recurse while requesting /token.
+            static async request(url, options = {}, retries = 3, backoff = 800) {
+                const { _authRetry = false, ...fetchOptions } = options;
                 try {
-                    const res = await fetch(url, options);
+                    const res = await fetch(url, fetchOptions);
 
-                    // Rate limit hit (429) -> exponential backoff retry
                     if (res.status === 429 && retries > 0) {
-                        const retryAfter = parseInt(res.headers.get('Retry-After') || '0', 10);
-                        const wait = retryAfter ? retryAfter * 1000 : backoff;
+                        const retryAfter = Number.parseInt(res.headers.get('Retry-After') || '0', 10);
+                        const wait = retryAfter > 0 ? retryAfter * 1000 : backoff;
                         await sleep(wait);
-                        return MailTmService.request(url, { ...options }, retries - 1, backoff * 2);
+                        return MailTmService.request(url, { ...fetchOptions, _authRetry }, retries - 1, backoff * 2);
                     }
 
-                    // Token expired or invalid (401) -> re-authenticate and retry request once
-                    if (res.status === 401 && appState.account?.address && appState.account?.password && !options._isRetry) {
-                        try {
-                            const newToken = await MailTmService.getToken(appState.account.address, appState.account.password);
-                            appState.token = newToken;
-                            sessionStorage.setItem('vercel_tempmail_session', JSON.stringify(appState.account));
-                            
-                            const newOptions = { ...options, _isRetry: true };
-                            newOptions.headers = newOptions.headers || {};
-                            newOptions.headers['Authorization'] = `Bearer ${newToken}`;
-                            return MailTmService.request(url, newOptions, retries, backoff);
-                        } catch (reAuthErr) {
-                            console.error('Re-authentication failed:', reAuthErr);
-                        }
+                    // A mailbox token can expire. Re-authenticate once, but never for /token itself.
+                    const isTokenRequest = url.endsWith('/token');
+                    if (res.status === 401 && !isTokenRequest && !_authRetry && appState.account?.address && appState.account?.password) {
+                        const newToken = await MailTmService.getToken(appState.account.address, appState.account.password);
+                        appState.token = newToken;
+                        sessionStorage.setItem('vercel_tempmail_session', JSON.stringify(appState.account));
+                        const headers = new Headers(fetchOptions.headers || {});
+                        headers.set('Authorization', `Bearer ${newToken}`);
+                        return MailTmService.request(url, { ...fetchOptions, headers, _authRetry: true }, retries, backoff);
                     }
 
                     return res;
                 } catch (err) {
                     if (retries > 0) {
                         await sleep(backoff);
-                        return MailTmService.request(url, { ...options }, retries - 1, backoff * 2);
+                        return MailTmService.request(url, { ...fetchOptions, _authRetry }, retries - 1, backoff * 2);
                     }
-                    throw err;
+                    throw new Error(`Mail service unavailable: ${err.message || 'network request failed'}`);
                 }
             }
 
@@ -610,13 +605,16 @@
             static async createAccount(address, password) {
                 const res = await MailTmService.request(`${API_BASE}/accounts`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify({ address, password })
                 });
-                
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
-                    throw new Error(data.message || data['hydra:description'] || `Failed to create account (${res.status})`);
+                    const detail = data.message || data['hydra:description'] || data.detail;
+                    throw new Error(detail || `Failed to create account (${res.status})`);
+                }
+                if (!data.id || data.address !== address) {
+                    throw new Error('Mail service returned an invalid mailbox response');
                 }
                 return data;
             }
@@ -629,9 +627,9 @@
                     body: JSON.stringify({ address, password })
                 });
 
-                const data = await res.json();
-                if (!res.ok) {
-                    throw new Error(data.message || data['hydra:description'] || 'Failed to authenticate token');
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.token) {
+                    throw new Error(data.message || data['hydra:description'] || `Failed to authenticate mailbox (${res.status})`);
                 }
                 return data.token;
             }
@@ -901,33 +899,32 @@
 
         async function createRandomAccount() {
             if (!appState.domains.length) throw new Error('No active domains available');
-            
-            // Pick an active domain returned from API
-            const activeDomainObj = appState.domains[Math.floor(Math.random() * appState.domains.length)];
-            const domain = activeDomainObj.domain;
-            const username = generateRandomString(8);
-            const address = `${username}@${domain}`;
-            const password = generateRandomString(12);
+            elements.currentAddress.textContent = 'Creating inbox…';
+            let lastError;
 
-            elements.currentAddress.textContent = 'Generating inbox...';
-            try {
-                // Step 2: Create Account
-                const account = await MailTmService.createAccount(address, password);
-                // Step 3: Request Token
-                const token = await MailTmService.getToken(address, password);
-                
-                appState.account = { address, password, id: account.id };
-                appState.token = token;
-                
-                sessionStorage.setItem('vercel_tempmail_session', JSON.stringify(appState.account));
-                
-                elements.currentAddress.textContent = address;
-                elements.domainBadge.textContent = `@${domain}`;
-                showToast(`New inbox created: ${address}`);
-            } catch (err) {
-                console.error(err);
-                throw err;
+            // A random local-part can very rarely already exist. Try a fresh address a few times.
+            for (let attempt = 0; attempt < 5; attempt++) {
+                const domain = appState.domains[Math.floor(Math.random() * appState.domains.length)].domain;
+                const address = `${generateRandomString(10)}@${domain}`;
+                const password = generateRandomString(18);
+                try {
+                    const account = await MailTmService.createAccount(address, password);
+                    const token = await MailTmService.getToken(address, password);
+                    appState.account = { address, password, id: account.id };
+                    appState.token = token;
+                    sessionStorage.setItem('vercel_tempmail_session', JSON.stringify(appState.account));
+                    elements.currentAddress.textContent = address;
+                    elements.domainBadge.textContent = `@${domain}`;
+                    updateStatus('Connected', 'animate-pulse bg-emerald-500');
+                    showToast(`Inbox created: ${address}`);
+                    return;
+                } catch (err) {
+                    lastError = err;
+                    console.warn(`Mailbox creation attempt ${attempt + 1} failed`, err);
+                    if (!/exist|already|taken|duplicate|invalid/i.test(err.message || '')) break;
+                }
             }
+            throw lastError || new Error('Could not create a temporary inbox');
         }
 
         async function refreshInbox() {
