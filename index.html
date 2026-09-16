@@ -554,7 +554,7 @@
         // Direct Mail.tm access remains useful when running from a local web server.
         const API_BASE = window.location.protocol === 'file:'
             ? 'https://api.mail.tm'
-            : '/api/mailtm';
+            : '/api/mailtm?path=';
 
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -573,7 +573,7 @@
                     }
 
                     // A mailbox token can expire. Re-authenticate once, but never for /token itself.
-                    const isTokenRequest = url.endsWith('/token');
+                    const isTokenRequest = url.endsWith('/token') || url.includes('path=/token');
                     if (res.status === 401 && !isTokenRequest && !_authRetry && appState.account?.address && appState.account?.password) {
                         const newToken = await MailTmService.getToken(appState.account.address, appState.account.password);
                         appState.token = newToken;

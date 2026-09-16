@@ -3,11 +3,11 @@ const MAILTM_ORIGIN = 'https://api.mail.tm';
 module.exports = async function handler(req, res) {
   try {
     const requestUrl = new URL(req.url || '/', 'https://vercel.local');
-    const proxyPrefix = '/api/mailtm/';
-    const path = requestUrl.pathname.startsWith(proxyPrefix)
-      ? requestUrl.pathname.slice(proxyPrefix.length)
-      : '';
-    const target = `${MAILTM_ORIGIN}/${path}${requestUrl.search}`;
+    const rawPath = requestUrl.searchParams.get('path') || '';
+    const path = rawPath.replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/');
+    const upstreamQuery = new URLSearchParams(requestUrl.search);
+    upstreamQuery.delete('path');
+    const target = `${MAILTM_ORIGIN}/${path}${upstreamQuery.toString() ? `?${upstreamQuery}` : ''}`;
     const headers = { accept: 'application/json' };
     if (req.headers?.authorization) headers.authorization = req.headers.authorization;
     if (req.headers?.['content-type']) headers['content-type'] = req.headers['content-type'];
