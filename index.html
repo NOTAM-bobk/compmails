@@ -550,11 +550,11 @@
     </div>
 
     <script>
-        // Use the Vercel same-origin proxy in production to avoid browser CORS blocks.
-        // Direct Mail.tm access remains useful when running from a local web server.
+        // Mail.tm does not return a browser CORS origin header, so production requests
+        // use the verified Cloudflare Worker proxy. Local file testing still works directly.
         const API_BASE = window.location.protocol === 'file:'
             ? 'https://api.mail.tm'
-            : '/api/mailtm?path=';
+            : 'https://compmails-mail-proxy.sawyerbobk563.workers.dev';
 
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -573,7 +573,7 @@
                     }
 
                     // A mailbox token can expire. Re-authenticate once, but never for /token itself.
-                    const isTokenRequest = url.endsWith('/token') || url.includes('path=/token');
+                    const isTokenRequest = url.endsWith('/token');
                     if (res.status === 401 && !isTokenRequest && !_authRetry && appState.account?.address && appState.account?.password) {
                         const newToken = await MailTmService.getToken(appState.account.address, appState.account.password);
                         appState.token = newToken;
