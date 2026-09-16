@@ -131,6 +131,195 @@
                 display: inline-flex;
             }
         }
+
+        /* Phone layout: keep controls reachable without horizontal scrolling. */
+        @media (max-width: 640px) {
+            html {
+                -webkit-text-size-adjust: 100%;
+            }
+
+            body {
+                min-width: 0;
+            }
+
+            header > div {
+                height: auto;
+                min-height: 58px;
+                padding: 10px 12px;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            header > div > div:first-child {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
+            header > div > div:last-child {
+                width: 100%;
+                display: flex;
+                gap: 8px;
+            }
+
+            header > div > div:last-child button {
+                min-height: 42px;
+                flex: 1 1 0;
+                justify-content: center;
+                padding: 8px 10px;
+                white-space: nowrap;
+            }
+
+            #headerTitle {
+                max-width: calc(100vw - 55px);
+            }
+
+            main {
+                padding: 16px 12px 20px !important;
+                gap: 16px !important;
+            }
+
+            #addressCard {
+                padding: 16px;
+                border-radius: 14px;
+            }
+
+            #addressCard > div {
+                gap: 14px;
+            }
+
+            #domainBadge {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                max-width: 46vw;
+            }
+
+            #currentAddress {
+                max-width: 100%;
+                font-size: 1rem;
+                line-height: 1.45;
+                overflow-wrap: anywhere;
+            }
+
+            #addressCard .flex.flex-wrap {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto auto;
+                gap: 8px;
+                width: 100%;
+            }
+
+            #addressCard .flex.flex-wrap button {
+                min-height: 44px;
+                padding: 9px 10px;
+            }
+
+            #btnCopyAddress {
+                min-width: 0;
+            }
+
+            #btnCopyAddress span {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            #btnRefresh span,
+            #btnAutoRefreshToggle span:not(#autoRefreshText) {
+                display: none;
+            }
+
+            #btnAutoRefreshToggle {
+                grid-column: 1 / -1;
+                justify-content: center;
+            }
+
+            #btnAutoRefreshToggle span#autoRefreshText {
+                display: inline;
+            }
+
+            main > div.grid {
+                gap: 14px !important;
+                min-height: 0;
+            }
+
+            main > div.grid > div:first-child {
+                min-height: 360px;
+                border-radius: 14px;
+            }
+
+            #messageList {
+                min-height: 300px;
+                max-height: none;
+            }
+
+            #searchInput {
+                min-height: 40px;
+                font-size: 13px;
+            }
+
+            #readerPanel {
+                inset: 8px;
+                border-radius: 14px;
+            }
+
+            #readerContent .p-4 {
+                padding: 14px;
+            }
+
+            #msgSubject {
+                font-size: 1rem;
+                line-height: 1.35;
+                white-space: normal;
+            }
+
+            #msgBodyIframe {
+                min-height: 55vh;
+            }
+
+            footer {
+                padding: 18px 12px;
+            }
+
+            footer > div {
+                align-items: flex-start;
+            }
+
+            footer > div > div:last-child {
+                width: 100%;
+                justify-content: space-between;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            footer > div > div:last-child button {
+                min-height: 36px;
+            }
+
+            .footer-tab {
+                min-height: 40px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            header > div > div:last-child button {
+                font-size: 11px;
+                padding-inline: 7px;
+            }
+
+            #addressCard .flex.flex-wrap {
+                grid-template-columns: minmax(0, 1fr) 44px 44px;
+            }
+
+            #btnShowQr,
+            #btnRefresh {
+                width: 44px;
+                padding-inline: 0 !important;
+            }
+
+            #btnRefresh span {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body class="bg-black text-zinc-100 min-h-screen flex flex-col selection:bg-zinc-800 selection:text-white relative overflow-x-hidden">
