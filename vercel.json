@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "api/mailtm.js": {
-      "runtime": "edge"
-    }
-  }
-}
