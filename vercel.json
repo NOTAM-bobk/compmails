@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/mailtm.js": {
+      "runtime": "nodejs20.x"
+    }
+  }
+}
